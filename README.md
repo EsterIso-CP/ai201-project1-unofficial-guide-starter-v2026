@@ -21,109 +21,93 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+This project answers student questions about campus life using a small corpus of short posts on courses, dining halls, housing, and administrative deadlines. You can ask things like how many hours a course takes outside of class, when a dining hall is open, or what laundry costs in a residence hall. If a question isn't covered by the posts, it says so instead of guessing.
 
 ## Chunking Strategy
 
 **Chunk size:**
+85
 **Overlap:**
+10
 
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
-
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
-
-     Milestone 3. -->
+I chose these numbers as 85 a bit under 30% of the documents average character size which helps with chunking proper ideas and not multiple ideas. 10 overlap because we do not need more than 20 extra characters to reach the answers needed as original chunking size should keep answers and only need the overlap for cut off details. 
 
 ## Sample Chunks
 
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
-
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
-
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_cs_210_exams.txt#4` — produced by: `chunker.py::split_documents`
 
 ```
+CS 210 Data Structures — assessment
+
+0% — the exams reuse the lab problems.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_phys_130_workload.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Workload for PHYS 130 Mechanics
+
+People keep asking so: 7 hours a week, plus 3 on lab
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_verrill_street_grill_followup.txt#7` — produced by: `chunker.py::split_documents`
 
 ```
+Re: Verrill Street Grill
+
+Nobody tells you this at orientation.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_morrow_house_laundry.txt#1` — produced by: `chunker.py::split_documents`
 
 ```
+Laundry in Morrow House
+
+There are eight washers and six dryers for the building, whi
 ```
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
+**Question:** `How many hours should I expect to spend outside of CS Data Structures course?`
 
-**Question:**
-
-**Answer:**
+**Answer:** `You should expect to spend 8 to 10 hours a week outside of class.`
 
 ```
+Source: course_cs_210.txt (and course_cs_210_workload.txt)
+
+Sources retrieved: course_cs_210.txt, course_cs_210_workload.txt
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** 0.5
 
-<!-- The number you set in config.py, and how you got there.
-
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
-
-     Milestone 4. -->
+I ran five questions the corpus covers and the five in `OUT_OF_SCOPE`, and recorded the best (lowest) chunk distance for each. The in-scope group ran from 0.095 (laundry cost at Fenwick Court) to 0.342 (maximum hours students can work), and the out-of-scope group ran from 0.783 (capital of Mongolia) to 0.841 (diesel oil change). The gap runs from 0.342 to 0.783. I put the cutoff at 0.5, which leaves about 0.16 of margin above my weakest in-scope question so a rephrased question isn't wrongly refused, while staying far below the closest off-topic question.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| How many hours should I expect to spend outside of CS Data Structures course? | Yes | 0.195 |
+| Which are the hours that Pellew Dining Hall? | Yes | 0.169 |
+| How much does laundry wash and dry cost at Fenwick Court? | Yes | 0.095 |
+| What are the maximum hours students can work? | Yes | 0.342 |
+| What time is the library open to? | Yes | 0.250 |
+| What is the capital of Mongolia? | No | 0.783 |
+| How do I change the oil in a diesel engine? | No | 0.841 |
+| Who won the 1994 World Cup? | No | 0.810 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.801 |
+| How do I write a for loop in Rust? | No | 0.831 |
 
 ## How I Used AI
+**1.** I asked Claude to write the chunking function for my corpus. The first version ignored both `CHUNK_SIZE` and `CHUNK_OVERLAP`, so chunks had no size cap and carried no text over from the previous chunk. It also split in the wrong places, cutting through thoughts instead of at natural boundaries. I went back and described what I expected: a post that fits in `CHUNK_SIZE` stays whole as one chunk, and a longer post has its title (the first line) prepended to every chunk. The body splits on paragraphs, then sentences, then a hard cut as a last resort. `CHUNK_SIZE` is a hard ceiling on the whole chunk, title included, and the overlap is built from whole units and capped at a quarter of the body budget so chunks can always advance. I also explained how it connects to the rest of the code: it returns `Chunk` objects tagged `produced_by="chunker.py::split_documents"`, which `app.py chunks` prints. With that spec, the function respected both settings and split cleanly.
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**2.** The version Claude gave me also dropped the title from a post's chunks whenever the title left less than 20 characters of room for body text (the `MIN_BODY_ROOM` fallback). I wanted the title on every chunk of a split post, so I asked Claude to remove that fallback. It did, and it warned that a title close to or longer than `CHUNK_SIZE` would make the body budget zero or negative, which would break the slicing and the "no chunk longer than CHUNK_SIZE" guarantee. I kept the change because the titles in my corpus are short, so the fallback was never needed.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
-
-<!-- ── Stretch features ─────────────────────────────────────────────────────
-     Doing one? Say so here BEFORE you start. A feature this README never
-     claims earns nothing.
-     ───────────────────────────────────────────────────────────────────────── -->
 
 ---
 

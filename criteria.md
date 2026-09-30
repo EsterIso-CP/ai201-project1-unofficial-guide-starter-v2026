@@ -26,6 +26,8 @@ contains the answer.
 <!-- e.g. "One of my questions is about a topic only two documents mention, so
      I expect that one to be hard." -->
 
+This target of 4 of 5 because questions with less related documents may struggle retrieving the correct chunk or chunks with the answer. This will most likely happen with the library question as it lacks many documents covering full scope of libraries experience. 
+
 ---
 
 ## 2. Every answer names a source
@@ -36,6 +38,8 @@ Every answer the system produces names at least one source document.
 <!-- Why all five and not four? What about your setup makes that achievable —
      or what would have to go wrong for it not to be? -->
 
+All five is the achievable target as it proves that the model is not just providing an answer, but follows the work flow proving it does every step including providing the name of the source documnets. 
+
 ---
 
 ## 3. The relevance gate stops out-of-corpus questions
@@ -44,53 +48,25 @@ When I ask a question my documents clearly don't cover, the relevance gate
 stops it and the system returns "I don't have enough information about that" —
 in at least 4 of 5 tries.
 
-<!-- The five questions are the ones in `OUT_OF_SCOPE` at the bottom of
-     `questions.py`, and `run_eval.py` puts them through the gate and writes
-     what happened into your run log. Swap them for your own if you'd rather —
-     just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
-
 **Why this target:**
-<!-- What did your distances look like when you set the cutoff in Milestone 4?
-     Was there a clean gap, or did the two groups overlap? -->
+I chose 4 of 5 because the cutoff is a tradeoff. If I set it tight enough to reject every off-topic question, it starts refusing legitimate questions that happen to be phrased unusually. I'd rather the gate occasionally let through a borderline question than refuse things my documents do cover. Any miss should be a question that sits close to my documents' topic, not a random one.
 
 ---
 
 ## 4. Something about your chunks
-
-<!-- YOU WRITE THIS ONE.
-
-     How would you know if your chunks were the right size? Name something
-     countable or observable.
-
-     Examples of the right shape — don't copy these, they should come from
-     what you actually saw in Milestone 3:
-       - "At least 4 of 5 sampled chunks read as a complete thought, with no
-          sentence cut in half at either end."
-       - "No chunk is shorter than 200 characters, since anything below that
-          in my corpus turned out to be a heading with no content under it." -->
-
-
+Chunks should not be shorter than 80 characters.
 
 **Why this target:**
-
+85 is the threshold I chose as it is on average a bit under 30% or less of the document. The average character per document in campus_life is 317, we want to avoid having whole document chunks. This chunk size is not too strict as some documents are smaller and others are bigger. 
 
 
 ---
 
 ## 5. Your choice
-
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. It could be about
-     speed, about refusals, about a particular kind of question your corpus
-     handles badly, about source attribution being correct rather than merely
-     present — anything, as long as it names a number or an observable
-     outcome. -->
-
-
+For all 5 test questions, every factual claim in the answer can be traced to a specific setence in one of the retrieved chunks.
 
 **Why this target:**
-
+I picked all 5 because we want to make sure the answers provided are grounded, and any failure to do so would prove ignored context or using own knowledge for answers. 
 
 
 ---

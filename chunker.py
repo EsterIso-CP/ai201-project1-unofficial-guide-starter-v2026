@@ -79,25 +79,113 @@ def fallback_split(
 
     return chunks
 
+import re
 
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
+    Split documents into chunks using a structure-aware strategy.
 
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
+    Design choices, based on the campus_life corpus:
+      - Documents are short posts, so a post that fits within CHUNK_SIZE
+        stays whole as a single chunk.
+      - The first line of a post is a title that states its topic, so for
+        posts that do get split, the title is prepended to every chunk.
+      - Splitting on paragraph breaks (then sentences, then a hard cut as a
+        last resort) keeps more complete thoughts intact than cutting at a
+        character count.
 
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
+    CHUNK_SIZE is a hard ceiling on the whole chunk, title included, so no
+    chunk is ever longer than CHUNK_SIZE. Chunks may be shorter. Each new
+    chunk starts with up to CHUNK_OVERLAP characters of whole units carried
+    over from the end of the previous chunk.
 
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+    Every chunk is tagged produced_by="chunker.py::split_documents" so the
+    README's Sample Chunks section names the right function.
+    `app.py chunks` prints that string.
     """
-    return fallback_split(documents)
+    max_chars = config.CHUNK_SIZE
+    overlap = config.CHUNK_OVERLAP
+    chunks: list[Chunk] = []
+
+    def size(parts: list[str]) -> int:
+        return len("\n".join(parts))
+
+    for doc in documents:
+        text = doc.text.strip()
+        if not text:
+            continue
+
+        if len(text) <= max_chars:
+            pieces = [text]
+        else:
+            first_line, _, rest = text.partition("\n")
+            title = first_line.strip()
+            body = rest.strip()
+
+            if not body:
+                # Only a title, nothing to split: plain windows.
+                step = max(max_chars - overlap, 1)
+                pieces = [title[i : i + max_chars] for i in range(0, len(title), step)]
+            else:
+                # Room for body text once "title\n\n" is added back.
+                budget = max_chars - (len(title) + 2)
+
+                # Overlap must stay below the budget or chunks can't advance.
+                ov = min(overlap, budget // 4)
+
+                # 1. Break the body into units: paragraphs, then sentences,
+                #    then a hard cut if a single sentence is still too long.
+                units: list[str] = []
+                for para in re.split(r"\n\s*\n", body):
+                    para = para.strip()
+                    if not para:
+                        continue
+                    if len(para) <= budget:
+                        units.append(para)
+                        continue
+                    for sent in re.split(r"(?<=[.!?])\s+", para):
+                        if len(sent) <= budget:
+                            units.append(sent)
+                        else:
+                            step = max(budget - ov, 1)
+                            units.extend(
+                                sent[i : i + budget] for i in range(0, len(sent), step)
+                            )
+
+                # 2. Pack units up to budget, seeding each new chunk with
+                #    trailing units from the previous one (the overlap).
+                bodies: list[str] = []
+                current: list[str] = []
+                for unit in units:
+                    if current and size(current + [unit]) > budget:
+                        bodies.append("\n".join(current))
+
+                        tail: list[str] = []
+                        for u in reversed(current):
+                            if size([u] + tail) > ov:
+                                break
+                            tail.insert(0, u)
+
+                        current = tail
+                        if size(current + [unit]) > budget:
+                            current = []
+                    current.append(unit)
+                if current:
+                    bodies.append("\n".join(current))
+
+                pieces = [f"{title}\n\n{b}" for b in bodies]
+
+        for i, piece in enumerate(pieces):
+            chunks.append(
+                Chunk(
+                    text=piece,
+                    source=doc.source,
+                    index=i,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:
